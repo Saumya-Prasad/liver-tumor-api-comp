@@ -59,26 +59,32 @@ pipeline {
         }
 
         stage('Azure Login') {
-            steps {
-                withCredentials([azureServicePrincipal(
-                    credentialsId: env.AZURE_CRED_ID,
-                    subscriptionIdVariable: 'SUBS_ID',
-                    clientIdVariable: 'CLIENT_ID',
-                    clientSecretVariable: 'CLIENT_SECRET',
-                    tenantIdVariable: 'TENANT_ID'
-                )]) {
-                    sh '''
-                    az login --service-principal \
-                      --username $CLIENT_ID \
-                      --password $CLIENT_SECRET \
-                      --tenant $TENANT_ID
+            when {
+            expression { return !params.SKIP_AZURE }
+    }
+    stage('Azure Login') {
+        when {
+            expression { return !params.SKIP_AZURE }
+        }
+        steps {
+            withCredentials([azureServicePrincipal(
+                credentialsId: env.AZURE_CRED_ID,
+                subscriptionIdVariable: 'SUBS_ID',
+                clientIdVariable: 'CLIENT_ID',
+                clientSecretVariable: 'CLIENT_SECRET',
+                tenantIdVariable: 'TENANT_ID'
+            )]) {
+                sh '''
+                az login --service-principal \
+                  --username $CLIENT_ID \
+                  --password $CLIENT_SECRET \
+                  --tenant $TENANT_ID
 
-                    az account set --subscription $SUBS_ID
-                    '''
-                }
+                az account set --subscription $SUBS_ID
+                '''
             }
         }
-
+    }
         stage('ACR Login') {
             steps {
                 sh '''

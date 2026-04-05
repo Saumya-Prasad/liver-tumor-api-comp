@@ -95,22 +95,14 @@ pipeline {
             }
         }
 
-        stage('Deploy to Azure Web App') {
+        stage('Simulated Deployment') {
             steps {
                 sh '''
-                az webapp config container set \
-                  --name $WEBAPP_NAME \
-                  --resource-group $RG_NAME \
-                  --docker-custom-image-name $ACR_URL/$IMAGE_NAME:latest \
-                  --docker-registry-server-url https://$ACR_URL
-
-                az webapp restart \
-                  --name $WEBAPP_NAME \
-                  --resource-group $RG_NAME
+                echo "Simulating deployment..."
+                docker run -d -p 8000:8000 ${ACR_URL}/${IMAGE_NAME}:latest || true
                 '''
             }
         }
-    }
 
     post {
         success {

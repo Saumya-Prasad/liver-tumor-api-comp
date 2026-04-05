@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(name: 'SKIP_AZURE', defaultValue: true, description: 'Skip Azure deployment stages')
+    }
+
     environment {
         IMAGE_NAME     = 'liver-tumor-api'
         ACR_NAME       = 'myliverregistry123'
@@ -25,7 +29,7 @@ pipeline {
                   -v $(pwd):/app \
                   -w /app \
                   python:3.10 \
-                  sh -c "pip install flake8 && flake8 app/ model/ training/ --max-line-length=120 || true"
+                  sh -c "pip install flake8 && flake8 . --max-line-length=120 || true"
                 '''
             }
         }
@@ -60,32 +64,44 @@ pipeline {
 
         stage('Azure Login') {
             when {
-            expression { return !params.SKIP_AZURE }
-    }
-    stage('Azure Login') {
-        when {
-            expression { return !params.SKIP_AZURE }
-        }
-        steps {
-            withCredentials([azureServicePrincipal(
-                credentialsId: env.AZURE_CRED_ID,
-                subscriptionIdVariable: 'SUBS_ID',
-                clientIdVariable: 'CLIENT_ID',
-                clientSecretVariable: 'CLIENT_SECRET',
-                tenantIdVariable: 'TENANT_ID'
-            )]) {
-                sh '''
-                az login --service-principal \
-                  --username $CLIENT_ID \
-                  --password $CLIENT_SECRET \
-                  --tenant $TENANT_ID
+                expression { return !params.SKIP_AZURE }
+            }
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/azure-cli'
+                    args '-u root'
+                }
+            }
+            steps {
+                withCredentials([azureServicePrincipal(
+                    credentialsId: env.AZURE_CRED_ID,
+                    subscriptionIdVariable: 'SUBS_ID',
+                    clientIdVariable: 'CLIENT_ID',
+                    clientSecretVariable: 'CLIENT_SECRET',
+                    tenantIdVariable: 'TENANT_ID'
+                )]) {
+                    sh '''
+                    az login --service-principal \
+                      --username $CLIENT_ID \
+                      --password $CLIENT_SECRET \
+                      --tenant $TENANT_ID
 
-                az account set --subscription $SUBS_ID
-                '''
+                    az account set --subscription $SUBS_ID
+                    '''
+                }
             }
         }
-    }
+
         stage('ACR Login') {
+            when {
+                expression { return !params.SKIP_AZURE }
+            }
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/azure-cli'
+                    args '-u root'
+                }
+            }
             steps {
                 sh '''
                 az acr login --name $ACR_NAME
@@ -94,6 +110,9 @@ pipeline {
         }
 
         stage('Push Image to ACR') {
+            when {
+                expression { return !params.SKIP_AZURE }
+            }
             steps {
                 sh '''
                 docker push $ACR_URL/$IMAGE_NAME:latest
@@ -105,21 +124,27 @@ pipeline {
             steps {
                 sh '''
                 echo "Simulating deployment..."
-                docker run -d -p 8000:8000 ${ACR_URL}/${IMAGE_NAME}:latest || true
+
+                docker stop liver-api || true
+                docker rm liver-api || true
+
+                docker run -d \
+                  --name liver-api \
+                  -p 8000:8000 \
+                  $IMAGE_NAME || true
                 '''
             }
         }
 
-    } 
+    }
 
     post {
         success {
-            echo 'Azure Deployment Successful'
-            echo 'Check: https://liver-tumor-api-prod.azurewebsites.net'
+            echo 'Pipeline executed successfully'
+            echo 'Local test: http://localhost:8000'
         }
         failure {
-            echo 'Pipeline failed — check logs'
+            echo 'Pipeline failed — check logs carefully'
         }
     }
-
-} 
+}

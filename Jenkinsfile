@@ -20,15 +20,18 @@ pipeline {
 
         stage('Lint') {
             steps {
-                sh 'pip install flake8 --quiet && flake8 app/ model/ training/ --max-line-length=120'
+                sh '''
+                docker run --rm -v $(pwd):/app -w /app python:3.10 \
+                sh -c "pip install flake8 && flake8 app/ model/ training/ --max-line-length=120"
+               '''
             }
         }
 
         stage('Unit Tests') {
             steps {
                 sh '''
-                    pip install -r requirements.txt --quiet
-                    pytest tests/ -v --tb=short
+                docker run --rm -v $(pwd):/app -w /app python:3.10 \
+                sh -c "pip install -r requirements.txt pytest && pytest tests/ -v"
                 '''
             }
         }

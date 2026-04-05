@@ -104,6 +104,8 @@ pipeline {
             }
         }
 
+    } 
+
     post {
         success {
             echo 'Azure Deployment Successful'
@@ -113,4 +115,5 @@ pipeline {
             echo 'Pipeline failed — check logs'
         }
     }
-}
+
+} 
